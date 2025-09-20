@@ -1,80 +1,96 @@
-from tkinter import *
-from tkinter import filedialog
+import tkinter as tk
+from tkinter import filedialog, messagebox, ttk
 from PIL import Image, ImageTk
+import os
+from style_transfer import apply_style
 
-root = Tk()
+# --- Initialize main window ---
+root = tk.Tk()
+root.title("AI Art Style Transfer")
+root.geometry("1200x700")
+root.configure(bg="#1E1E1E")
 
-root.title('StyleSynth')
-root.geometry('900x700')
-root.resizable(False, False)
+# --- Global Variables ---
+selected_image_path = None
+output_img_tk = None
 
-def upload_image():
-    # Create a file dialog to select an image file
-    file_path = filedialog.askopenfilename(filetypes=[("Image Files", "*.png;*.jpg;*.jpeg")])
+predefined_styles = [
+    "Van Gogh - Starry Night", "Da Vinci - Mona Lisa", "Picasso - Cubism",
+    "Claude Monet - Impressionism", "Salvador Dali - Surrealism", "Cyberpunk", "Custom"
+]
+
+# --- Load Default Images for UI ---
+default_img = Image.new("RGB", (300, 300), color=(50, 50, 50))
+default_img_tk = ImageTk.PhotoImage(default_img)
+
+# --- Select Image Function ---
+def select_image():
+    global selected_image_path
+    file_path = filedialog.askopenfilename(filetypes=[("Image files", "*.jpg;*.jpeg;*.png")])
     if file_path:
-        img = Image.open(file_path)
-        img = img.resize((300,200))
+        selected_image_path = file_path
+        img = Image.open(file_path).resize((300, 300))
         img_tk = ImageTk.PhotoImage(img)
-        
-        uploaded_img.config(image=img_tk)
-        uploaded_img.image = img_tk
+        preview_label.config(image=img_tk)
+        preview_label.image = img_tk
 
-        # Create a Dropdown widget to select an artstyle from
-        artstyle_dropdown = OptionMenu(root, selected_option, *artstyle_options)
-        artstyle_dropdown.place(relx=0.5,y=440, anchor=CENTER)
+# --- Process Image Function ---
+def process_image():
+    global selected_image_path, output_img_tk
 
-        # Placeholder text
-        placeholder_text = "Enter your prompt here(Optional)"
+    if not selected_image_path:
+        messagebox.showerror("Error", "Please select an image first.")
+        return
 
-        # Create a Text widget
-        text_box = Text(root, width=32, height=5, fg="grey")
-        text_box.place(relx=0.36,y=480)
+    selected_style = style_var.get()
+    user_text = user_input.get().strip()
 
-        # Insert the placeholder initially
-        text_box.insert("1.0", placeholder_text)
+    if selected_style == "Custom" and not user_text:
+        messagebox.showerror("Error", "Please enter a custom style prompt.")
+        return
 
-        # Function to remove placeholder on focus
-        def on_focus_in(event):
-            if text_box.get("1.0", "end-1c") == placeholder_text:
-                text_box.delete("1.0", "end")
-                text_box.config(fg="black")  # Change text color
+    user_prompt = user_text if selected_style == "Custom" else user_text
+    final_style = selected_style if selected_style != "Custom" else user_text
 
-        # Function to restore placeholder if empty
-        def on_focus_out(event):
-            if text_box.get("1.0", "end-1c").strip() == "":
-                text_box.insert("1.0", placeholder_text)
-                text_box.config(fg="grey")  # Grey color for hint
+    try:
+        output_path = apply_style(selected_image_path, final_style, user_prompt)
 
-        # Bind focus events
-        text_box.bind("<FocusIn>", on_focus_in)
-        text_box.bind("<FocusOut>", on_focus_out)
+        # Load and display styled image
+        styled_img = Image.open(output_path).resize((300, 300))
+        output_img_tk = ImageTk.PhotoImage(styled_img)
+        output_label.config(image=output_img_tk)
+        output_label.image = output_img_tk
 
-        submit_button = Button(root,text='Let the magic begin!', command='processing')
-        submit_button.place(relx=0.5, y=600, anchor=CENTER)
+        messagebox.showinfo("Success", f"Style applied: {final_style}\nSaved to: {output_path}")
 
-# Add image as background
-bg_image = PhotoImage(file='assets/gradient_bg16.png')
-bg_label = Label(root, image = bg_image)
-bg_label.place(relheight=1, relwidth=1)
+    except Exception as e:
+        messagebox.showerror("Error", f"Failed to apply style:\n{e}")
 
-# Add logo image to the window
-logo = PhotoImage(file='assets/Stylesynth.png')
-logo_label = Label(root, image = logo)
-logo_label.place(relx=0.5, rely=0.15, anchor=CENTER)
+# --- UI Layout ---
+frame = tk.Frame(root, bg="#2A2A2A", padx=20, pady=20, relief="solid", bd=2)
+frame.pack(pady=20)
 
-# Add button to upload image
-upload_button = Button(root, text="Upload Image", command=upload_image)
-upload_button.place(relx=0.5, y=180, anchor=CENTER)
+tk.Label(frame, text="AI Art Style Transfer", font=("Helvetica", 24, "bold"), fg="#D4D4D4", bg="#2A2A2A").grid(row=0, column=0, columnspan=2, pady=10)
 
-# Display uploaded image
-uploaded_img = Label(root)
-uploaded_img.place(x=300, y=200)
+# Image Previews
+preview_label = tk.Label(frame, image=default_img_tk, bg="#3A3A3A", relief="ridge", bd=2)
+preview_label.grid(row=1, column=0, padx=15, pady=10)
 
-# Art style options
-artstyle_options = ['Select an art style','Van Gough - Starry Night', 'Da Vinci - Mona Lisa', 'Picasso - Cubism', 'Claude Monet - Impressionism', 'Salvador Dali - Surrealism', 'Cyberpunk', 'Pixel art']
+output_label = tk.Label(frame, image=default_img_tk, bg="#3A3A3A", relief="ridge", bd=2)
+output_label.grid(row=1, column=1, padx=15, pady=10)
 
-selected_option = StringVar(root)
-selected_option.set(artstyle_options[0])
+# Buttons and Inputs
+tk.Button(frame, text="Select Image", font=("Helvetica", 14), command=select_image, bg="#0078D4", fg="white", padx=15, pady=8, relief="flat").grid(row=2, column=0, columnspan=2, pady=10)
 
+style_var = tk.StringVar()
+style_var.set(predefined_styles[0])
+ttk.Combobox(frame, textvariable=style_var, values=predefined_styles, font=("Helvetica", 12), state="readonly", width=40).grid(row=3, column=0, columnspan=2, pady=10)
 
+user_input = tk.Entry(frame, font=("Helvetica", 12), width=45, relief="solid", bd=1, fg="#D4D4D4", bg="#3A3A3A")
+user_input.insert(0, "Describe the style you want...")
+user_input.grid(row=4, column=0, columnspan=2, pady=10)
+
+tk.Button(frame, text="Apply Style", font=("Helvetica", 14), command=process_image, bg="#28A745", fg="white", padx=15, pady=8, relief="flat").grid(row=5, column=0, columnspan=2, pady=20)
+
+# --- Start Main Loop ---
 root.mainloop()
